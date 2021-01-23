@@ -76,8 +76,8 @@ contract Swap is Initializable, Ownable {
     emit Swaped(msg.sender, path[0], amounts[0], amounts[path.length - 1], to);
   }
 
-  function withdrawWETH(address to, uint256 amount) external onlyOwner {
-    TransferHelper.safeTransfer(WETH, to, amount);
+  function withdrawToken(address token, address to, uint256 amount) external onlyOwner {
+    TransferHelper.safeTransfer(token, to, amount);
   }
 
   function withdrawETH(address to, uint256 amount) external onlyOwner {
