@@ -46,7 +46,7 @@ contract Swap is Initializable {
       )[path_iotx.length - 1];
     } else {
       _uni_iotx = router.swapETHForExactTokens(
-        amount_iotx.sub(amount_iotx.mul(5).div(1000)),
+        amount_usdt_iotx.sub(amount_usdt_iotx.mul(5).div(1000)),
         path_usdt_iotx,
         address(this),
         _deadline
