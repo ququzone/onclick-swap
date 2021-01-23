@@ -3,64 +3,84 @@ pragma solidity >=0.6.0 <0.8.0;
 
 import "@openzeppelin/contracts/proxy/Initializable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
 import "./interfaces/IUniswapV2Router02.sol";
 import "./interfaces/ITube.sol";
-import "./utils/Bytes.sol";
+import "./interfaces/IWETH.sol";
 
-contract Swap is Initializable {
-  using Bytes for bytes;
+contract Swap is Initializable, Ownable {
   using SafeMath for uint;
+  using SafeMath for uint256;
 
-  address[] public path_iotx;
-  address[] public path_usdt_iotx;
+  address public WETH;
   IUniswapV2Router02 public router;
   ITube public tube;
 
-  event Swaped(address indexed user, uint256 eth, uint256 iotx, address recipient);
+  event Swaped(
+    address indexed user,
+    address token,
+    uint256 amountIn,
+    uint256 amountOut,
+    address recipient
+  );
 
   function initialize(
-    address[] memory _path_iotx,
-    address[] memory _path_usdt_iotx,
+    address _weth,
     IUniswapV2Router02 _router,
     ITube _tube
   ) public initializer {
-    path_iotx = _path_iotx;
-    path_usdt_iotx = _path_usdt_iotx;
+    WETH = _weth;
     router = _router;
     tube = _tube;
   }
 
-  fallback() external payable {
-    address _to = msg.data.toAddress(0);
-
-    uint256 _amountIn = msg.value;
-    uint amount_iotx = router.getAmountsOut(_amountIn, path_iotx)[path_iotx.length - 1];
-    uint amount_usdt_iotx = router.getAmountsOut(_amountIn, path_usdt_iotx)[path_usdt_iotx.length - 1];
-
-    uint _deadline = block.timestamp + 1200;
-    uint _uni_iotx;
-    if (amount_iotx > amount_usdt_iotx) {
-      _uni_iotx = router.swapETHForExactTokens(
-        amount_iotx.sub(amount_iotx.mul(5).div(1000)),
-        path_iotx,
-        address(this),
-        _deadline
-      )[path_iotx.length - 1];
+  function swap(
+    uint amountIn,
+    uint amountOutMin,
+    address[] calldata path,
+    address to,
+    uint deadline
+  ) external payable {
+    if (msg.value > 0) {
+      require(path[0] == WETH, "Swap::swap::invalid path");
+      require(amountIn >= msg.value, "Swap::swap::invalid amount in");
+      IWETH(WETH).deposit{value: msg.value}();
+      uint[] memory amounts = router.getAmountsOut(amountIn, path);
+      require(amounts[amounts.length - 1] >= amountOutMin, "Swap::swap::insufficient output amount");
+      if (amounts[0] > msg.value) {
+        TransferHelper.safeTransferFrom(
+          WETH, msg.sender, address(this), amounts[0].sub(msg.value)
+        );
+      }
     } else {
-      _uni_iotx = router.swapETHForExactTokens(
-        amount_usdt_iotx.sub(amount_usdt_iotx.mul(5).div(1000)),
-        path_usdt_iotx,
-        address(this),
-        _deadline
-      )[path_usdt_iotx.length - 1];
+      uint requireAmount = router.getAmountsOut(amountIn, path)[0];
+      TransferHelper.safeTransferFrom(
+        path[0], msg.sender, address(this), requireAmount
+      );
     }
     
-    tube.depositTo(_to, _uni_iotx);
+    uint[] memory amounts = router.swapExactTokensForTokens(
+      amountIn,
+      amountOutMin,
+      path,
+      address(this),
+      deadline
+    );
+    
+    tube.depositTo(to, amounts[path.length - 1]);
+    if (msg.value > amounts[0]) {
+      TransferHelper.safeTransfer(WETH, msg.sender, msg.value.sub(amounts[0]));
+    }
 
-    emit Swaped(msg.sender, _amountIn, _uni_iotx, _to);
+    emit Swaped(msg.sender, path[0], amounts[0], amounts[path.length - 1], to);
   }
 
-  receive() external payable {
-    revert('must call fallback');
+  function withdrawWETH(address to, uint256 amount) external onlyOwner {
+    TransferHelper.safeTransfer(WETH, to, amount);
+  }
+
+  function withdrawETH(address to, uint256 amount) external onlyOwner {
+    TransferHelper.safeTransferETH(to, amount);
   }
 }
