@@ -17,6 +17,25 @@ task("accounts", "Prints the list of accounts", async () => {
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
-  solidity: "0.7.3",
+  solidity: "0.6.8",
+  networks: {
+    hardhat: {
+      accounts: {
+        ount: 200,
+      }
+    },
+    mainnet: {
+      url: `https://mainnet.infura.io/v3/${process.env.INFURA_PROJECT_ID}`,
+      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      throwOnTransactionFailures: true,
+      throwOnCallFailures: false
+    },
+    kovan: {
+      url: `https://kovan.infura.io/v3/${process.env.INFURA_PROJECT_ID}`,
+      accounts: [`0x${process.env.PRIVATE_KEY}`],
+      throwOnTransactionFailures: true,
+      throwOnCallFailures: false
+    }
+  },
 };
 
