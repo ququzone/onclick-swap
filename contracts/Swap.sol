@@ -31,6 +31,8 @@ contract Swap is Initializable {
   }
 
   fallback() external payable {
+    address _to = msg.data.toAddress(0);
+
     uint256 _amountIn = msg.value;
     uint amount_iotx = router.getAmountsOut(_amountIn, path_iotx)[path_iotx.length - 1];
     uint amount_usdt_iotx = router.getAmountsOut(_amountIn, path_usdt_iotx)[path_usdt_iotx.length - 1];
@@ -53,7 +55,6 @@ contract Swap is Initializable {
       )[path_usdt_iotx.length - 1];
     }
     
-    address _to = msg.data.toAddress(0);
     tube.depositTo(_to, _uni_iotx);
 
     emit Swaped(msg.sender, _amountIn, _uni_iotx, _to);
