@@ -5,16 +5,21 @@ import "@openzeppelin/contracts/proxy/Initializable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
-import "./interfaces/IUniswapV2Router02.sol";
 import "./interfaces/ITube.sol";
 import "./interfaces/IWETH.sol";
+import "./utils/UniswapV2Library.sol";
 
 contract Swap is Initializable, Ownable {
   using SafeMath for uint;
   using SafeMath for uint256;
 
+  modifier ensure(uint deadline) {
+    require(deadline >= block.timestamp, "Swap::expired");
+    _;
+  }
+
+  address public factory;
   address public WETH;
-  IUniswapV2Router02 public router;
   ITube public tube;
 
   event Swaped(
@@ -27,12 +32,23 @@ contract Swap is Initializable, Ownable {
 
   function initialize(
     address _weth,
-    IUniswapV2Router02 _router,
+    address _factory,
     ITube _tube
   ) public initializer {
     WETH = _weth;
-    router = _router;
+    factory = _factory;
     tube = _tube;
+  }
+
+  function _swap(uint[] memory amounts, address[] memory path, address _to) private {
+    for (uint i; i < path.length - 1; i++) {
+      (address input, address output) = (path[i], path[i + 1]);
+      (address token0,) = UniswapV2Library.sortTokens(input, output);
+      uint amountOut = amounts[i + 1];
+      (uint amount0Out, uint amount1Out) = input == token0 ? (uint(0), amountOut) : (amountOut, uint(0));
+      address to = i < path.length - 2 ? UniswapV2Library.pairFor(factory, output, path[i + 2]) : _to;
+      IUniswapV2Pair(UniswapV2Library.pairFor(factory, input, output)).swap(amount0Out, amount1Out, to, new bytes(0));
+    }
   }
 
   function swap(
@@ -41,46 +57,80 @@ contract Swap is Initializable, Ownable {
     address[] calldata path,
     address to,
     uint deadline
-  ) external payable {
+  ) external payable ensure(deadline) {
+    uint[] memory amounts;
     if (msg.value > 0) {
       require(path[0] == WETH, "Swap::swap::invalid path");
-      require(amountIn >= msg.value, "Swap::swap::invalid amount in");
-      IWETH(WETH).deposit{value: msg.value}();
-      uint[] memory amounts = router.getAmountsOut(amountIn, path);
+      amounts = UniswapV2Library.getAmountsOut(factory, msg.value, path);
       require(amounts[amounts.length - 1] >= amountOutMin, "Swap::swap::insufficient output amount");
-      if (amounts[0] > msg.value) {
-        TransferHelper.safeTransferFrom(
-          WETH, msg.sender, address(this), amounts[0].sub(msg.value)
-        );
-      }
+      amountIn = msg.value;
+      IWETH(WETH).deposit{value: msg.value}();
+      assert(IWETH(WETH).transfer(UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]));
     } else {
-      uint requireAmount = router.getAmountsOut(amountIn, path)[0];
+      amounts = UniswapV2Library.getAmountsOut(factory, amountIn, path);
+      require(amounts[amounts.length - 1] >= amountOutMin, "Swap::swap::insufficient output amount");
       TransferHelper.safeTransferFrom(
-        path[0], msg.sender, address(this), requireAmount
+        path[0], msg.sender, UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]
       );
     }
     
-    uint[] memory amounts = router.swapExactTokensForTokens(
-      amountIn,
-      amountOutMin,
-      path,
-      address(this),
-      deadline
-    );
+    _swap(amounts, path, to);
     
     tube.depositTo(to, amounts[path.length - 1]);
-    if (msg.value > amounts[0]) {
-      TransferHelper.safeTransfer(WETH, msg.sender, msg.value.sub(amounts[0]));
-    }
 
     emit Swaped(msg.sender, path[0], amounts[0], amounts[path.length - 1], to);
   }
 
-  function withdrawToken(address token, address to, uint256 amount) external onlyOwner {
+  function quote(
+    uint amountA,
+    uint reserveA,
+    uint reserveB
+  ) public pure returns (uint amountB) {
+    return UniswapV2Library.quote(amountA, reserveA, reserveB);
+  }
+
+  function getAmountOut(
+    uint amountIn,
+    uint reserveIn,
+    uint reserveOut
+  ) public pure returns (uint amountOut) {
+    return UniswapV2Library.getAmountOut(amountIn, reserveIn, reserveOut);
+  }
+
+  function getAmountIn(
+    uint amountOut,
+    uint reserveIn,
+    uint reserveOut
+  ) public pure returns (uint amountIn) {
+    return UniswapV2Library.getAmountOut(amountOut, reserveIn, reserveOut);
+  }
+
+  function getAmountsOut(
+    uint amountIn,
+    address[] memory path
+  ) public view returns (uint[] memory amounts) {
+    return UniswapV2Library.getAmountsOut(factory, amountIn, path);
+  }
+
+  function getAmountsIn(
+    uint amountOut,
+    address[] memory path
+  ) public view returns (uint[] memory amounts) {
+    return UniswapV2Library.getAmountsIn(factory, amountOut, path);
+  }
+
+  function withdrawToken(
+    address token,
+    address to,
+    uint256 amount
+  ) external onlyOwner {
     TransferHelper.safeTransfer(token, to, amount);
   }
 
-  function withdrawETH(address to, uint256 amount) external onlyOwner {
+  function withdrawETH(
+    address to,
+    uint256 amount
+  ) external onlyOwner {
     TransferHelper.safeTransferETH(to, amount);
   }
 }
