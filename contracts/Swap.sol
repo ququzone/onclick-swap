@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: Unlicense
-pragma solidity >=0.6.0 <0.8.0;
+pragma solidity >=0.6.0;
 
 import "@openzeppelin/contracts/proxy/Initializable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -7,9 +7,10 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
 import "./interfaces/ITube.sol";
 import "./interfaces/IWETH.sol";
+import "./interfaces/ISwap.sol";
 import "./utils/UniswapV2Library.sol";
 
-contract Swap is Initializable, Ownable {
+contract Swap is ISwap, Initializable, Ownable {
   using SafeMath for uint;
   using SafeMath for uint256;
 
@@ -21,14 +22,6 @@ contract Swap is Initializable, Ownable {
   address public factory;
   address public WETH;
   ITube public tube;
-
-  event Swaped(
-    address indexed user,
-    address token,
-    uint256 amountIn,
-    uint256 amountOut,
-    address recipient
-  );
 
   function initialize(
     address _weth,
@@ -57,7 +50,7 @@ contract Swap is Initializable, Ownable {
     address[] calldata path,
     address to,
     uint deadline
-  ) external payable ensure(deadline) {
+  ) external payable override ensure(deadline) returns (uint iotx) {
     uint[] memory amounts;
     if (msg.value > 0) {
       require(path[0] == WETH, "Swap::swap::invalid path");
@@ -69,23 +62,26 @@ contract Swap is Initializable, Ownable {
     } else {
       amounts = UniswapV2Library.getAmountsOut(factory, amountIn, path);
       require(amounts[amounts.length - 1] >= amountOutMin, "Swap::swap::insufficient output amount");
+      amountIn = amounts[0];
       TransferHelper.safeTransferFrom(
         path[0], msg.sender, UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]
       );
     }
     
     _swap(amounts, path, to);
-    
-    tube.depositTo(to, amounts[path.length - 1]);
 
-    emit Swaped(msg.sender, path[0], amounts[0], amounts[path.length - 1], to);
+    iotx = amounts[path.length - 1];
+    
+    tube.depositTo(to, iotx);
+
+    emit Swaped(msg.sender, path[0], amountIn, iotx, to);
   }
 
   function quote(
     uint amountA,
     uint reserveA,
     uint reserveB
-  ) public pure returns (uint amountB) {
+  ) public pure override returns (uint amountB) {
     return UniswapV2Library.quote(amountA, reserveA, reserveB);
   }
 
@@ -93,7 +89,7 @@ contract Swap is Initializable, Ownable {
     uint amountIn,
     uint reserveIn,
     uint reserveOut
-  ) public pure returns (uint amountOut) {
+  ) public pure override returns (uint amountOut) {
     return UniswapV2Library.getAmountOut(amountIn, reserveIn, reserveOut);
   }
 
@@ -101,21 +97,21 @@ contract Swap is Initializable, Ownable {
     uint amountOut,
     uint reserveIn,
     uint reserveOut
-  ) public pure returns (uint amountIn) {
+  ) public pure override returns (uint amountIn) {
     return UniswapV2Library.getAmountOut(amountOut, reserveIn, reserveOut);
   }
 
   function getAmountsOut(
     uint amountIn,
     address[] memory path
-  ) public view returns (uint[] memory amounts) {
+  ) public view override returns (uint[] memory amounts) {
     return UniswapV2Library.getAmountsOut(factory, amountIn, path);
   }
 
   function getAmountsIn(
     uint amountOut,
     address[] memory path
-  ) public view returns (uint[] memory amounts) {
+  ) public view override returns (uint[] memory amounts) {
     return UniswapV2Library.getAmountsIn(factory, amountOut, path);
   }
 
