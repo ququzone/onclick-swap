@@ -1,8 +1,6 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity >=0.6.0;
 
-import "@openzeppelin/contracts/proxy/Initializable.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
 import "./interfaces/ITube.sol";
@@ -10,25 +8,25 @@ import "./interfaces/IWETH.sol";
 import "./interfaces/ISwap.sol";
 import "./utils/UniswapV2Library.sol";
 
-contract Swap is ISwap, Initializable, Ownable {
-  using SafeMath for uint;
-  using SafeMath for uint256;
-
+contract Swap is ISwap, Ownable {
   modifier ensure(uint deadline) {
     require(deadline >= block.timestamp, "Swap::expired");
     _;
   }
 
   address public factory;
-  address public WETH;
+  address public weth;
+  address public iotx;
   ITube public tube;
 
-  function initialize(
+  constructor (
     address _weth,
+    address _iotx,
     address _factory,
     ITube _tube
-  ) public initializer {
-    WETH = _weth;
+  ) public {
+    weth = _weth;
+    iotx = _iotx;
     factory = _factory;
     tube = _tube;
   }
@@ -50,15 +48,16 @@ contract Swap is ISwap, Initializable, Ownable {
     address[] calldata path,
     address to,
     uint deadline
-  ) external payable override ensure(deadline) returns (uint iotx) {
+  ) external payable override ensure(deadline) returns (uint iotxAmount) {
+    require(path[path.length - 1] == iotx, "Swap::swap::invalid path");
     uint[] memory amounts;
     if (msg.value > 0) {
-      require(path[0] == WETH, "Swap::swap::invalid path");
+      require(path[0] == weth, "Swap::swap::invalid path");
       amounts = UniswapV2Library.getAmountsOut(factory, msg.value, path);
       require(amounts[amounts.length - 1] >= amountOutMin, "Swap::swap::insufficient output amount");
       amountIn = msg.value;
-      IWETH(WETH).deposit{value: msg.value}();
-      assert(IWETH(WETH).transfer(UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]));
+      IWETH(weth).deposit{value: msg.value}();
+      assert(IWETH(weth).transfer(UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]));
     } else {
       amounts = UniswapV2Library.getAmountsOut(factory, amountIn, path);
       require(amounts[amounts.length - 1] >= amountOutMin, "Swap::swap::insufficient output amount");
@@ -68,13 +67,13 @@ contract Swap is ISwap, Initializable, Ownable {
       );
     }
     
-    _swap(amounts, path, to);
+    _swap(amounts, path, address(this));
 
-    iotx = amounts[path.length - 1];
-    
-    tube.depositTo(to, iotx);
+    iotxAmount = amounts[path.length - 1];
+  
+    tube.depositTo(to, iotxAmount);
 
-    emit Swaped(msg.sender, path[0], amountIn, iotx, to);
+    emit Swaped(msg.sender, path[0], amountIn, iotxAmount, to);
   }
 
   function quote(
