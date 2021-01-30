@@ -6,7 +6,7 @@ async function main() {
 
     const tube = await TubeMock.deploy();
     await tube.deployed();
-    console.log("tube deployed to:", tube.address);
+    console.log("Tube deployed to:", tube.address);
 }
 
 main();
