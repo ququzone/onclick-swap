@@ -1,0 +1,12 @@
+
+const { ethers } = require("hardhat");
+
+async function main() {
+    const TubeMock = await ethers.getContractFactory("TubeMock");
+
+    const tube = await TubeMock.deploy();
+    await tube.deployed();
+    console.log("tube deployed to:", tube.address);
+}
+
+main();
