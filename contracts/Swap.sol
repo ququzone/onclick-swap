@@ -2,6 +2,7 @@
 pragma solidity >=0.6.0;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
 import "./interfaces/ITube.sol";
 import "./interfaces/IWETH.sol";
@@ -74,6 +75,10 @@ contract Swap is ISwap, Ownable {
     tube.depositTo(to, iotxAmount);
 
     emit Swaped(msg.sender, path[0], amountIn, iotxAmount, to);
+  }
+
+  function approveIOTX(uint256 _amount) public {
+    require(IERC20(iotx).approve(address(tube), _amount), "approve iotx fail");
   }
 
   function quote(
