@@ -29,8 +29,8 @@ export SWAP_ADDRESS=0x90a8Ff54142dd21dE9E54F495b5b5f84212B2B72
 
 - Tube
 
-  https://kovan.etherscan.io/address/0xC93aCcA3E129969fd78B0239dB8D4a59EFd16A16
+  https://kovan.etherscan.io/address/0xE2094A08c8Ff81ca77555a7c46683bBAb1d871Ee
 
 - Swap
 
-  https://kovan.etherscan.io/address/0x116CBdD45D8c95bF01309b0091De075804cFf4Bd
+  https://kovan.etherscan.io/address/0x90a8Ff54142dd21dE9E54F495b5b5f84212B2B72
