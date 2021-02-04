@@ -1,6 +1,7 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity >=0.6.0;
 
+import "@openzeppelin/contracts/proxy/Initializable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
@@ -20,16 +21,23 @@ contract Swap is ISwap, Ownable {
   address public iotx;
   ITube public tube;
 
-  constructor (
+  function initialize (
     address _weth,
     address _iotx,
     address _factory,
     ITube _tube
-  ) public {
+  ) public onlyOwner {
     weth = _weth;
     iotx = _iotx;
     factory = _factory;
     tube = _tube;
+    require(IERC20(iotx).approve(address(tube), 2**256 - 1), "Swap::initialize::approve iotx fail");
+  }
+
+  function setTube(ITube _tube) public onlyOwner {
+    require(address(tube) != address(_tube), "Swap::setTube::can not use same tube");
+    tube = _tube;
+    require(IERC20(iotx).approve(address(tube), 2**256 - 1), "Swap::initialize::approve iotx fail");
   }
 
   function _swap(uint[] memory amounts, address[] memory path, address _to) private {
@@ -75,10 +83,6 @@ contract Swap is ISwap, Ownable {
     tube.depositTo(to, iotxAmount);
 
     emit Swaped(msg.sender, path[0], amountIn, iotxAmount, to);
-  }
-
-  function approveIOTX(uint256 _amount) public {
-    require(IERC20(iotx).approve(address(tube), _amount), "approve iotx fail");
   }
 
   function quote(
