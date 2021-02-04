@@ -1,7 +1,6 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity >=0.6.0;
 
-import "@openzeppelin/contracts/proxy/Initializable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import '@uniswap/lib/contracts/libraries/TransferHelper.sol';
