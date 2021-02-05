@@ -72,19 +72,19 @@ contract Swap is ISwap, Ownable {
 
     finalAmount = amounts[path.length - 1];
 
-    _deposit(_tube, path[path.length - 1], to, finalAmount);
+    _deposit(_tube, tubeFee, path[path.length - 1], to, finalAmount);
 
     emit Swaped(msg.sender, path[0], path[path.length - 1], amountIn, finalAmount, to);
   }
 
-  function _deposit(ITube tube, address token, address to, uint256 amount) internal {
+  function _deposit(ITube tube, uint256 tubeFee, address token, address to, uint256 amount) internal {
     IERC20 finalToken = IERC20(token);
     uint256 allowance = finalToken.allowance(address(this), address(tube));
     if (allowance < amount) {
       require(finalToken.approve(address(tube), 2**256 - 1), "Swap::swap::approve token fail");
     }
   
-    tube.depositTo(token, to, amount); 
+    tube.depositTo{value: tubeFee}(token, to, amount); 
   }
 
   function quote(
