@@ -33,4 +33,4 @@ export SWAP_ADDRESS=0x77795D92aC917781f5EB782774e440b489793e38
 
 - Swap
 
-  https://kovan.etherscan.io/address/0x8CaaD3Cd8a91d522057FeE013Cf9874C989191aF
+  https://kovan.etherscan.io/address/0x77795D92aC917781f5EB782774e440b489793e38
