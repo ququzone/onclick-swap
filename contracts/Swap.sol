@@ -17,26 +17,13 @@ contract Swap is ISwap, Ownable {
 
   address public factory;
   address public weth;
-  address public iotx;
-  ITube public tube;
 
-  function initialize (
+  constructor (
     address _weth,
-    address _iotx,
-    address _factory,
-    ITube _tube
-  ) public onlyOwner {
+    address _factory
+  ) public {
     weth = _weth;
-    iotx = _iotx;
     factory = _factory;
-    tube = _tube;
-    require(IERC20(iotx).approve(address(tube), 2**256 - 1), "Swap::initialize::approve iotx fail");
-  }
-
-  function setTube(ITube _tube) public onlyOwner {
-    require(address(tube) != address(_tube), "Swap::setTube::can not use same tube");
-    tube = _tube;
-    require(IERC20(iotx).approve(address(tube), 2**256 - 1), "Swap::initialize::approve iotx fail");
   }
 
   function _swap(uint[] memory amounts, address[] memory path, address _to) private {
@@ -51,20 +38,26 @@ contract Swap is ISwap, Ownable {
   }
 
   function swap(
+    address tube,
     uint amountIn,
     uint amountOutMin,
     address[] calldata path,
     address to,
     uint deadline
-  ) external payable override ensure(deadline) returns (uint iotxAmount) {
-    require(path[path.length - 1] == iotx, "Swap::swap::invalid path");
+  ) external payable override ensure(deadline) returns (uint finalAmount) {
+    ITube _tube = ITube(tube);
+    uint256 tubeFee = _tube.depositFee();
+
+    require(msg.value >= tubeFee, "Swap::swap::insufficient balance for tube fee");
+
     uint[] memory amounts;
-    if (msg.value > 0) {
+    if (msg.value - tubeFee > 0) {
       require(path[0] == weth, "Swap::swap::invalid path");
-      amounts = UniswapV2Library.getAmountsOut(factory, msg.value, path);
+      uint swapAmount = msg.value - tubeFee;
+      amounts = UniswapV2Library.getAmountsOut(factory, swapAmount, path);
       require(amounts[amounts.length - 1] >= amountOutMin, "Swap::swap::insufficient output amount");
-      amountIn = msg.value;
-      IWETH(weth).deposit{value: msg.value}();
+      amountIn = swapAmount;
+      IWETH(weth).deposit{value: swapAmount}();
       assert(IWETH(weth).transfer(UniswapV2Library.pairFor(factory, path[0], path[1]), amounts[0]));
     } else {
       amounts = UniswapV2Library.getAmountsOut(factory, amountIn, path);
@@ -77,11 +70,21 @@ contract Swap is ISwap, Ownable {
     
     _swap(amounts, path, address(this));
 
-    iotxAmount = amounts[path.length - 1];
-  
-    tube.depositTo(to, iotxAmount);
+    finalAmount = amounts[path.length - 1];
 
-    emit Swaped(msg.sender, path[0], amountIn, iotxAmount, to);
+    _deposit(_tube, path[path.length - 1], to, finalAmount);
+
+    emit Swaped(msg.sender, path[0], path[path.length - 1], amountIn, finalAmount, to);
+  }
+
+  function _deposit(ITube tube, address token, address to, uint256 amount) internal {
+    IERC20 finalToken = IERC20(token);
+    uint256 allowance = finalToken.allowance(address(this), address(tube));
+    if (allowance < amount) {
+      require(finalToken.approve(address(tube), 2**256 - 1), "Swap::swap::approve token fail");
+    }
+  
+    tube.depositTo(token, to, amount); 
   }
 
   function quote(

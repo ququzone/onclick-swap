@@ -16,4 +16,8 @@ contract TubeMock is ITube {
     require(IERC20(_token).transferFrom(msg.sender, address(this), _amount), "TubeMock::depositTo::transfer token fail");
     emit Deposited(_token, _to, _amount);
   }
+
+  function depositFee() override external view returns (uint256) {
+    return 0;
+  }
 }

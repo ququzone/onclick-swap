@@ -4,13 +4,15 @@ pragma solidity >=0.6.0;
 interface ISwap {
   event Swaped(
     address indexed user,
-    address token,
+    address indexed fromToken,
+    address indexed toToken,
     uint256 amountIn,
     uint256 amountOut,
     address recipient
   );
 
   function swap(
+    address tube,
     uint amountIn,
     uint amountOutMin,
     address[] calldata path,
