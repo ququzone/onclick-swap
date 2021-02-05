@@ -2,5 +2,5 @@
 pragma solidity >=0.5.0;
 
 interface ITube {
-  function depositTo(address _to, uint256 _amount) external payable;
+  function depositTo(address _token, address _to, uint256 _amount) external payable;
 }
